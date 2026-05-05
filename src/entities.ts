@@ -127,10 +127,21 @@ export function makeEntityApi(client: SupabaseClient, mapping: EntityMapping): E
       if (error) throw error;
       return data ?? null;
     },
+    async read(id) {
+      const { data, error } = await from().select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      return data ?? null;
+    },
     async create(body) {
       const { data, error } = await from().insert(body).select().single();
       if (error) throw error;
       return data;
+    },
+    async bulkCreate(rows) {
+      if (!rows.length) return [];
+      const { data, error } = await from().insert(rows).select();
+      if (error) throw error;
+      return data ?? [];
     },
     async update(id, body) {
       const { data, error } = await from().update(body).eq('id', id).select().single();
@@ -140,6 +151,22 @@ export function makeEntityApi(client: SupabaseClient, mapping: EntityMapping): E
     async delete(id) {
       const { error } = await from().delete().eq('id', id);
       if (error) throw error;
+    },
+    subscribe(callback) {
+      const channel = client
+        .channel(`${mapping.schema}.${mapping.table}.${Math.random().toString(36).slice(2, 8)}`)
+        .on(
+          'postgres_changes' as never,
+          { event: '*', schema: mapping.schema, table: mapping.table },
+          (payload: { eventType: string; new?: unknown; old?: unknown }) => {
+            const type = payload.eventType.toLowerCase() as 'insert' | 'update' | 'delete';
+            callback({ type, new: payload.new as never, old: payload.old as never });
+          },
+        )
+        .subscribe();
+      return () => {
+        void client.removeChannel(channel);
+      };
     },
   };
 }

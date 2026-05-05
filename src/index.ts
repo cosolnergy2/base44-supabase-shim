@@ -1,12 +1,20 @@
 import { createClient as createSupabase, type SupabaseClient } from '@supabase/supabase-js';
-import { makeAuth } from './auth.js';
+import { makeAuth, type AuthOptions } from './auth.js';
 import { makeEntitiesProxy } from './entities.js';
 import { makeFunctions } from './functions.js';
+import { makeIntegrations, type IntegrationsOptions } from './integrations.js';
 import { makeStorage } from './storage.js';
 import type { ClientOptions, EntitiesProxy } from './types.js';
 
 export type * from './types.js';
 export { defaultEntityToTable, resolveEntityMapping, parseOrderBy } from './entities.js';
+
+export interface ExtendedClientOptions extends ClientOptions {
+  /** Auth-related options (login redirect path, etc). */
+  authOptions?: AuthOptions;
+  /** Integration stub configuration (storage default bucket, edge function names). */
+  integrations?: Partial<IntegrationsOptions>;
+}
 
 export interface Base44Client {
   /** Underlying Supabase client (anon key). */
@@ -15,12 +23,13 @@ export interface Base44Client {
   auth: ReturnType<typeof makeAuth>;
   functions: ReturnType<typeof makeFunctions>;
   storage: ReturnType<typeof makeStorage>;
+  integrations: ReturnType<typeof makeIntegrations>;
   /** Service-role-scoped namespace for trusted server contexts. Throws if no service key supplied. */
   asServiceRole: { entities: EntitiesProxy };
 }
 
 /** Create a Base44-compatible client backed by Supabase. */
-export function createClient(options: ClientOptions): Base44Client {
+export function createClient(options: ExtendedClientOptions): Base44Client {
   if (!options.supabaseUrl) throw new Error('createClient: supabaseUrl is required');
   if (!options.supabaseAnonKey) throw new Error('createClient: supabaseAnonKey is required');
   if (!options.schemaPrefix) throw new Error('createClient: schemaPrefix is required');
@@ -65,9 +74,14 @@ export function createClient(options: ClientOptions): Base44Client {
   return {
     supabase,
     entities,
-    auth: makeAuth(supabase),
+    auth: makeAuth(supabase, options.authOptions),
     functions: makeFunctions(supabase),
     storage: makeStorage(supabase, options.schemaPrefix),
+    integrations: makeIntegrations(supabase, {
+      defaultBucket: options.integrations?.defaultBucket ?? options.schemaPrefix,
+      sendEmailFunction: options.integrations?.sendEmailFunction,
+      invokeLlmFunction: options.integrations?.invokeLlmFunction,
+    }),
     asServiceRole,
   };
 }

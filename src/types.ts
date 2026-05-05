@@ -65,9 +65,18 @@ export interface EntityApi<T = Record<string, unknown>> {
   list(orderBy?: string | OrderBy, limit?: number): Promise<T[]>;
   filter(where: FilterObject, orderBy?: string | OrderBy, limit?: number): Promise<T[]>;
   get(id: string): Promise<T | null>;
+  /** Alias for get() — Base44 SDK exposes both names. */
+  read(id: string): Promise<T | null>;
   create(body: Partial<T>): Promise<T>;
+  /** Insert multiple rows in one call. */
+  bulkCreate(rows: Array<Partial<T>>): Promise<T[]>;
   update(id: string, body: Partial<T>): Promise<T>;
   delete(id: string): Promise<void>;
+  /**
+   * Subscribe to row changes via Supabase Realtime.
+   * Returns an unsubscribe function (matches Base44 convention).
+   */
+  subscribe(callback: (event: { type: 'insert' | 'update' | 'delete'; new?: T; old?: T }) => void): () => void;
 }
 
 export type EntitiesProxy = {
