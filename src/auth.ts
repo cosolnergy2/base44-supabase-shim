@@ -82,8 +82,15 @@ export function makeAuth(client: SupabaseClient, opts: AuthOptions = {}) {
       // Already on the login route → no-op. Prevents redirect loops when an
       // unauthenticated check on /login itself fires another redirectToLogin.
       if (window.location.pathname === loginPath) return;
-      const url = returnUrl
-        ? `${loginPath}?next=${encodeURIComponent(returnUrl)}`
+      // Defensive: if the returnUrl already points back to a login page (cyclic
+      // chain from old buggy state), drop it. Also drop if it's absurdly long.
+      let safeReturn: string | undefined = returnUrl;
+      if (safeReturn) {
+        const looksCyclic = safeReturn.includes(`${loginPath}?next=`) || safeReturn.includes(`${loginPath}%3F`);
+        if (looksCyclic || safeReturn.length > 1024) safeReturn = undefined;
+      }
+      const url = safeReturn
+        ? `${loginPath}?next=${encodeURIComponent(safeReturn)}`
         : loginPath;
       window.location.assign(url);
     },
