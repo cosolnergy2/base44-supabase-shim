@@ -79,6 +79,9 @@ export function makeAuth(client: SupabaseClient, opts: AuthOptions = {}) {
      */
     redirectToLogin(returnUrl?: string) {
       if (typeof window === 'undefined') return;
+      // Already on the login route → no-op. Prevents redirect loops when an
+      // unauthenticated check on /login itself fires another redirectToLogin.
+      if (window.location.pathname === loginPath) return;
       const url = returnUrl
         ? `${loginPath}?next=${encodeURIComponent(returnUrl)}`
         : loginPath;
