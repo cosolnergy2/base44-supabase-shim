@@ -3,6 +3,7 @@ import { makeAuth, type AuthOptions } from './auth.js';
 import { makeEntitiesProxy } from './entities.js';
 import { makeFunctions } from './functions.js';
 import { makeIntegrations, type IntegrationsOptions } from './integrations.js';
+import { app, makeAppLogs, makeUsers } from './misc.js';
 import { makeStorage } from './storage.js';
 import type { ClientOptions, EntitiesProxy } from './types.js';
 
@@ -24,6 +25,12 @@ export interface Base44Client {
   functions: ReturnType<typeof makeFunctions>;
   storage: ReturnType<typeof makeStorage>;
   integrations: ReturnType<typeof makeIntegrations>;
+  /** Per-page activity logger. Writes to core.audit_log; errors are swallowed. */
+  appLogs: ReturnType<typeof makeAppLogs>;
+  /** Admin user management; browser-side calls throw (use Studio instead). */
+  users: ReturnType<typeof makeUsers>;
+  /** Empty placeholder for base44.app property access. */
+  app: Record<string, unknown>;
   /** Service-role-scoped namespace for trusted server contexts. Throws if no service key supplied. */
   asServiceRole: { entities: EntitiesProxy };
 }
@@ -82,6 +89,9 @@ export function createClient(options: ExtendedClientOptions): Base44Client {
       sendEmailFunction: options.integrations?.sendEmailFunction,
       invokeLlmFunction: options.integrations?.invokeLlmFunction,
     }),
+    appLogs: makeAppLogs(supabase, options.schemaPrefix),
+    users: makeUsers(),
+    app,
     asServiceRole,
   };
 }
