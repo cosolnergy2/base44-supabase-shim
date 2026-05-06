@@ -10,7 +10,7 @@ export function makeAppLogs(client: SupabaseClient, app: string) {
   return {
     async logUserInApp(pageName: string): Promise<void> {
       try {
-        await client.schema('core' as never).from('audit_log').insert({
+        await client.schema('core' as never).from('audit_logs').insert({
           app,
           action: 'page_view',
           module: pageName,
