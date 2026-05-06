@@ -10,13 +10,17 @@ import type {
 } from './types.js';
 
 const DEFAULT_SHARED_ENTITIES = [
-  'Customer',
-  'Company',
+  // Auth/identity (option C: shared)
   'User',
   'Role',
+  'UserRole',      // 'finance.user_roles' was 404 — UserRole belongs in shared
   'Department',
-  'Notification',
+  // Org (option C: shared)
+  'Company',
+  // Cross-app entities exposed by core schema
   'AuditLog',
+  // Note: Customer is intentionally NOT shared — each app's Customer schema
+  // differs significantly (CRM vs Facility vs Construction).
 ];
 
 /** PascalCase → snake_case + naive pluralization (s, ies, es). */
@@ -102,6 +106,23 @@ function applyFilter(query: any, where: FilterObject): any {
 export function makeEntityApi(client: SupabaseClient, mapping: EntityMapping): EntityApi {
   const from = () => client.schema(mapping.schema as never).from(mapping.table);
 
+  // Treat "table not in schema cache" (PGRST205) and 404 as empty result, not error.
+  // Apps reference many entities that may not exist in self-host schema yet —
+  // surfacing as empty lets the UI render skeletons instead of crashing.
+  const isMissingTableError = (e: unknown): boolean => {
+    if (!e || typeof e !== 'object') return false;
+    const code = (e as { code?: string }).code;
+    const status = (e as { status?: number }).status;
+    return code === 'PGRST205' || code === '42P01' || status === 404;
+  };
+  const warnedTables = new Set<string>();
+  const warnMissing = () => {
+    const key = `${mapping.schema}.${mapping.table}`;
+    if (warnedTables.has(key)) return;
+    warnedTables.add(key);
+    if (typeof console !== 'undefined') console.warn(`[base44-shim] table ${key} not found — returning empty result`);
+  };
+
   return {
     async list(orderBy, limit) {
       let q = from().select('*');
@@ -109,7 +130,10 @@ export function makeEntityApi(client: SupabaseClient, mapping: EntityMapping): E
       if (ob) q = q.order(ob.field, { ascending: ob.ascending ?? true });
       if (limit) q = q.limit(limit);
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        if (isMissingTableError(error)) { warnMissing(); return []; }
+        throw error;
+      }
       return data ?? [];
     },
     async filter(where, orderBy, limit) {
@@ -119,17 +143,26 @@ export function makeEntityApi(client: SupabaseClient, mapping: EntityMapping): E
       if (ob) q = q.order(ob.field, { ascending: ob.ascending ?? true });
       if (limit) q = q.limit(limit);
       const { data, error } = await q;
-      if (error) throw error;
+      if (error) {
+        if (isMissingTableError(error)) { warnMissing(); return []; }
+        throw error;
+      }
       return data ?? [];
     },
     async get(id) {
       const { data, error } = await from().select('*').eq('id', id).maybeSingle();
-      if (error) throw error;
+      if (error) {
+        if (isMissingTableError(error)) { warnMissing(); return null; }
+        throw error;
+      }
       return data ?? null;
     },
     async read(id) {
       const { data, error } = await from().select('*').eq('id', id).maybeSingle();
-      if (error) throw error;
+      if (error) {
+        if (isMissingTableError(error)) { warnMissing(); return null; }
+        throw error;
+      }
       return data ?? null;
     },
     async create(body) {

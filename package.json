@@ -1,6 +1,6 @@
 {
   "name": "@cosolnergy2/base44-supabase-shim",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Drop-in shim mimicking @base44/sdk API but routing to a self-hosted Supabase backend.",
   "license": "UNLICENSED",
   "private": true,
